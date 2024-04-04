@@ -1,3 +1,5 @@
+pub use aoc_macro::EnumFromChar;
+
 pub mod grid;
 pub trait Problem {
     type Solution: std::fmt::Debug;
