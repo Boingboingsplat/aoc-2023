@@ -55,7 +55,7 @@ impl Problem for Day04 {
             .collect();
         let mut counts = vec![1; card_matches.len()];
         for (i, &matches) in card_matches.iter().enumerate() {
-            for j in 0..(matches as usize){
+            for j in 0..matches {
                 counts[i + j + 1] += counts[i];
             }
         }

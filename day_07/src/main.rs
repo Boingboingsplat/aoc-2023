@@ -18,7 +18,7 @@ enum Card {
     #[char = 'A'] Ace,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum HandType {
     HighCard,
     OnePair,
@@ -29,14 +29,18 @@ enum HandType {
     FiveOfAKind,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Hand {
+    hand_type: HandType,
     cards: [Card; 5],
 }
 
 impl Hand {
     pub fn new(cards: [Card; 5]) -> Hand {
-        Hand { cards }
+        Hand { 
+            hand_type: Self::hand_type(&cards),
+            cards,
+        }
     }
 
     pub fn jacks_to_jokers(self) -> Hand {
@@ -47,9 +51,9 @@ impl Hand {
         Hand::new(cards)
     }
 
-    pub fn hand_type(&self) -> HandType {
+    fn hand_type(cards: &[Card]) -> HandType {
         let mut rank_counts = [0; 14];
-        for card in &self.cards {
+        for card in cards {
             rank_counts[*card as usize] += 1;
         }
         let jokers = rank_counts[0];
@@ -71,16 +75,6 @@ impl Hand {
     }
 }
 
-impl PartialOrd for Hand {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        let hand_type_cmp = self.hand_type().partial_cmp(&other.hand_type());
-        match hand_type_cmp {
-            Some(std::cmp::Ordering::Equal) => self.cards.partial_cmp(&other.cards),
-            _ => hand_type_cmp
-        }
-    }
-}
-
 fn parse_line(line: &str) -> (Hand, u64) {
     let (hand, bet) = line.split_once(' ').unwrap();
     let cards: Vec<_> = hand.chars().map(|c| c.try_into().unwrap()).collect();
@@ -96,7 +90,7 @@ impl Problem for Day07 {
         let mut bets: Vec<_> = input.lines()
             .map(parse_line)
             .collect();
-        bets.sort_by_key(|(hand, _)| hand.clone());
+        bets.sort_by_key(|(hand, _)| *hand);
         bets.iter()
             .enumerate()
             .map(|(i, (_hand, bet))| (i as u64 + 1) * bet )
@@ -110,7 +104,7 @@ impl Problem for Day07 {
                 (hand.jacks_to_jokers(), bet)
             })
             .collect();
-        bets.sort_by_key(|(hand, _)| hand.clone());
+        bets.sort_by_key(|(hand, _)| *hand);
         bets.iter()
             .enumerate()
             .map(|(i, (_hand, bet))| (i as u64 + 1) * bet )

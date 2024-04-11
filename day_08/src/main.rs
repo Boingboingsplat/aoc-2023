@@ -48,7 +48,7 @@ impl<'a> Iterator for NodeMapIter<'a> {
     type Item = &'a LabeledNode;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (left, right) = self.node_map.get(&self.current_node)?;
+        let (left, right) = self.node_map.get(self.current_node)?;
         let next = match self.dir_iter.next().unwrap() {
             Direction::Left => left,
             Direction::Right => right,

@@ -13,9 +13,9 @@ fn parse_cube_set(i: &str) -> IResult<&str, CubeSet> {
         separated_list0(
             tag(", "),
             alt((
-                map(terminated(nom::character::complete::u32, tag(" red")), |n| CubeCount::Red(n)),
-                map(terminated(nom::character::complete::u32, tag(" blue")), |n| CubeCount::Blue(n)),
-                map(terminated(nom::character::complete::u32, tag(" green")), |n| CubeCount::Green(n)),
+                map(terminated(nom::character::complete::u32, tag(" red")), CubeCount::Red),
+                map(terminated(nom::character::complete::u32, tag(" blue")), CubeCount::Blue),
+                map(terminated(nom::character::complete::u32, tag(" green")), CubeCount::Green),
             )),
         ),
         |entries| {
