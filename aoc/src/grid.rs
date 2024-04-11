@@ -77,6 +77,15 @@ impl<T> Grid<T> {
         Grid { map, width, height }
     }
 
+    pub fn check_inbounds<P> (&self, point: P) -> bool
+    where
+        P: TryInto<Point>,
+        P::Error: Debug,
+    {
+        let point = point.try_into().expect("Could not convert value into point");
+        point.x >= 0 && point.x < self.width as isize && point.y >= 0 && point.y < self.height as isize
+    }
+
     pub fn width(&self) -> usize {
         self.width
     }
@@ -116,7 +125,7 @@ impl<T> Grid<T> {
             Point { x: 1, y: 0 },
             Point { x: 0, y: 1 },
         ];
-        GridCellNeighbors { grid: &self, center: point, index: 0, neighbors: &NEIGHBORS }
+        GridCellNeighbors { grid: self, center: point, index: 0, neighbors: &NEIGHBORS }
     }
 
     pub fn point_ortho_neighbors_iter(&self, point: Point) -> GridCellNeighbors<T> {
@@ -130,7 +139,13 @@ impl<T> Grid<T> {
             Point { x: 0, y: 1 },
             Point { x: 1, y: 1 },
         ];
-        GridCellNeighbors { grid: &self, center: point, index: 0, neighbors: &NEIGHBORS }
+        GridCellNeighbors { grid: self, center: point, index: 0, neighbors: &NEIGHBORS }
+    }
+}
+
+impl<T> Default for Grid<T> {
+    fn default() -> Self {
+        Grid::new()
     }
 }
 
@@ -235,6 +250,42 @@ impl<'a, T> Iterator for GridCellNeighbors<'a, T> {
             self.index += 1;
             match val {
                 Some(val) => Some(val),
+                None => self.next(),
+            }
+        }
+    }
+}
+
+impl<'a, T> GridCellNeighbors<'a, T> {
+    pub fn indexed(self) -> GridCellNeighborsIndexed<'a, T> {
+        GridCellNeighborsIndexed {
+            grid: self.grid,
+            center: self.center,
+            index: self.index,
+            neighbors: self.neighbors,
+        }
+    }
+}
+
+pub struct GridCellNeighborsIndexed<'a, T> {
+    grid: &'a Grid<T>,
+    center: Point,
+    index: usize,
+    neighbors: &'static [Point],
+}
+
+impl<'a, T> Iterator for GridCellNeighborsIndexed<'a, T> {
+    type Item = (Point, &'a T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.neighbors.len() {
+            None
+        } else {
+            let neighbor = self.center + self.neighbors[self.index];
+            let val = self.grid.get(neighbor);
+            self.index += 1;
+            match val {
+                Some(val) => Some((neighbor, val)),
                 None => self.next(),
             }
         }

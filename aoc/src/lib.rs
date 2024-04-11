@@ -20,20 +20,20 @@ pub trait Problem {
 
 #[macro_export]
 macro_rules! test_part_1 {
-    ($t:ident, $input:expr, $sol:expr) => {
+    ($t:ident, $( $input:expr, $sol:expr ),+) => {
         #[test]
         fn test_part_1() {
-            assert_eq!($t::part_1($input), $sol);
+            $( assert_eq!($t::part_1($input), $sol); )+
         }
     };
 }
 
 #[macro_export]
 macro_rules! test_part_2 {
-    ($t:ident, $input:expr, $sol:expr) => {
+    ($t:ident, $( $input:expr, $sol:expr ),+) => {
         #[test]
         fn test_part_2() {
-            assert_eq!($t::part_2($input), $sol);
+            $( assert_eq!($t::part_2($input), $sol); )+
         }
     };
 }
