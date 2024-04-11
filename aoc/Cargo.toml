@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 aoc_macro = { path = "../aoc_macro" }
+derive_more = "0.99.17"

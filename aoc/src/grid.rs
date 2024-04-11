@@ -1,52 +1,49 @@
-use std::{collections::HashMap, fmt::{Debug, Display}, hash::Hash, ops::{Add, AddAssign, Sub, SubAssign}};
+use derive_more::{Add, AddAssign};
+use std::{collections::HashMap, fmt::{Debug, Display}};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Add, AddAssign)]
 pub struct Point {
+    pub x: usize,
+    pub y: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Add, AddAssign)]
+pub struct Vector2D {
     pub x: isize,
     pub y: isize,
 }
 
-impl Display for Point {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({}, {})", self.x, self.y)
+impl Point {
+    pub fn offset_by<V: Into<Vector2D>> (&self, vec_2d: V) -> Option<Point> {
+        let vec_2d = vec_2d.into();
+        Some(Point {
+            x: self.x.checked_add_signed(vec_2d.x)?,
+            y: self.y.checked_add_signed(vec_2d.y)?,
+        })
     }
 }
 
-impl Add for Point {
-    type Output = Point;
+impl TryFrom<Vector2D> for Point {
+    type Error = <isize as TryInto<usize>>::Error;
 
-    fn add(self, rhs: Self) -> Self::Output {
-        Point { x: self.x + rhs.x, y: self.y + rhs.y }
+    fn try_from(value: Vector2D) -> Result<Self, Self::Error> {
+        Ok(Point { x: value.x.try_into()?, y: value.y.try_into()? })
+    }
+} 
+
+impl<T: Into<usize>> From<(T, T)> for Point {
+    fn from(value: (T, T)) -> Self {
+        let x = value.0.into();
+        let y = value.1.into();
+        Point { x, y }
     }
 }
 
-impl AddAssign for Point {
-    fn add_assign(&mut self, rhs: Self) {
-        self.x += rhs.x;
-        self.y += rhs.y;
-    }
-}
-
-impl Sub for Point {
-    type Output = Point;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Point { x: self.x - rhs.x, y: self.y - rhs.y }
-    }
-}
-
-impl SubAssign for Point {
-    fn sub_assign(&mut self, rhs: Self) {
-        self.x -= rhs.x;
-        self.y -= rhs.y;
-    }
-}
-
-impl<T: TryInto<isize>> TryFrom<(T, T)> for Point {
-    type Error = T::Error;
-
-    fn try_from(value: (T, T)) -> Result<Self, Self::Error> {
-        Ok(Point { x: value.0.try_into()?, y: value.1.try_into()? })
+impl <T: Into<isize>> From<(T, T)> for Vector2D {
+    fn from(value: (T, T)) -> Self {
+        let x = value.0.into();
+        let y = value.1.into();
+        Vector2D { x, y }
     }
 }
 
@@ -69,8 +66,6 @@ impl<T> Grid<T> {
         for (y, row) in input.into_iter().enumerate() {
             width = width.max(row.len());
             for (x, value) in row.into_iter().enumerate() {
-                let x = x as isize;
-                let y = y as isize;
                 map.insert(Point { x, y }, value);
             }
         }
@@ -79,11 +74,10 @@ impl<T> Grid<T> {
 
     pub fn check_inbounds<P> (&self, point: P) -> bool
     where
-        P: TryInto<Point>,
-        P::Error: Debug,
+        P: Into<Point>,
     {
-        let point = point.try_into().expect("Could not convert value into point");
-        point.x >= 0 && point.x < self.width as isize && point.y >= 0 && point.y < self.height as isize
+        let point = point.into();
+        point.x < self.width && point.y < self.height
     }
 
     pub fn width(&self) -> usize {
@@ -96,21 +90,19 @@ impl<T> Grid<T> {
 
     pub fn get<P> (&self, point: P) -> Option<&T>
     where
-        P: TryInto<Point>,
-        P::Error: Debug,
+        P: Into<Point>,
     {
-        let point = point.try_into().expect("Could not convert value into point");
+        let point = point.into();
         self.map.get(&point)
     }
 
     pub fn insert<P> (&mut self, point: P, value: T) -> Option<T>
     where
-        P: TryInto<Point>,
-        P::Error: Debug,
+        P: Into<Point>,
     {
-        let point = point.try_into().expect("Could not convert value into point");
-        self.width = self.width.max((point.x + 1) as usize);
-        self.height = self.height.max((point.y + 1) as usize);
+        let point = point.into();
+        self.width = self.width.max(point.x + 1);
+        self.height = self.height.max(point.y + 1);
         self.map.insert(point, value)
     }
 
@@ -118,28 +110,30 @@ impl<T> Grid<T> {
         GridIterator { grid: self, current: Point { x: 0, y: 0 }}
     }
 
-    pub fn point_neighbors_iter(&self, point: Point) -> GridCellNeighbors<T> {
-        const NEIGHBORS: [Point; 4] = [
-            Point { x: 0, y: -1 },
-            Point { x: -1, y: 0 },
-            Point { x: 1, y: 0 },
-            Point { x: 0, y: 1 },
+    pub fn point_neighbors_iter(&self, point: &Point) -> GridCellNeighbors<T> {
+        const NEIGHBOR_VECS: [Vector2D; 4] = [
+            Vector2D { x: 0, y: -1 },
+            Vector2D { x: -1, y: 0 },
+            Vector2D { x: 1, y: 0 },
+            Vector2D { x: 0, y: 1 },
         ];
-        GridCellNeighbors { grid: self, center: point, index: 0, neighbors: &NEIGHBORS }
+        let neighbors = NEIGHBOR_VECS.iter().filter_map(|&vec_2d| point.offset_by(vec_2d)).collect();
+        GridCellNeighbors { grid: self, index: 0, neighbors }
     }
 
-    pub fn point_ortho_neighbors_iter(&self, point: Point) -> GridCellNeighbors<T> {
-        const NEIGHBORS: [Point; 8] = [
-            Point { x: -1, y: -1 },
-            Point { x: 0, y: -1 },
-            Point { x: 1, y: -1 },
-            Point { x: -1, y: 0 },
-            Point { x: 1, y: 0 },
-            Point { x: -1, y: 1 },
-            Point { x: 0, y: 1 },
-            Point { x: 1, y: 1 },
+    pub fn point_ortho_neighbors_iter(&self, point: &Point) -> GridCellNeighbors<T> {
+        const NEIGHBOR_VECS: [Vector2D; 8] = [
+            Vector2D { x: -1, y: -1 },
+            Vector2D { x: 0, y: -1 },
+            Vector2D { x: 1, y: -1 },
+            Vector2D { x: -1, y: 0 },
+            Vector2D { x: 1, y: 0 },
+            Vector2D { x: -1, y: 1 },
+            Vector2D { x: 0, y: 1 },
+            Vector2D { x: 1, y: 1 },
         ];
-        GridCellNeighbors { grid: self, center: point, index: 0, neighbors: &NEIGHBORS }
+        let neighbors = NEIGHBOR_VECS.iter().filter_map(|&vec_2d| point.offset_by(vec_2d)).collect();
+        GridCellNeighbors { grid: self, index: 0, neighbors }
     }
 }
 
@@ -163,8 +157,6 @@ where
             width = width.max(line.len());
             for (x, c) in line.chars().enumerate() {
                 if let Ok(val) = c.try_into() {
-                    let x = x as isize;
-                    let y = y as isize;
                     map.insert(Point { x, y }, val);
                 }
             }
@@ -188,12 +180,12 @@ impl<'a, T> Iterator for GridIterator<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current.y as usize >= self.grid.height {
+        if self.current.y >= self.grid.height {
             None
         } else {
             let val = self.grid.get(self.current);
             self.current.x += 1;
-            if self.current.x as usize >= self.grid.width {
+            if self.current.x >= self.grid.width {
                 self.current.x = 0;
                 self.current.y += 1;
             }
@@ -214,12 +206,12 @@ impl<'a, T> Iterator for GridIndexedIterator<'a, T> {
     type Item = (&'a Point, &'a T);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current.y as usize >= self.grid.height {
+        if self.current.y >= self.grid.height {
             None
         } else {
             let val = self.grid.map.get_key_value(&self.current);
             self.current.x += 1;
-            if self.current.x as usize >= self.grid.width {
+            if self.current.x >= self.grid.width {
                 self.current.x = 0;
                 self.current.y += 1;
             }
@@ -233,9 +225,8 @@ impl<'a, T> Iterator for GridIndexedIterator<'a, T> {
 
 pub struct GridCellNeighbors<'a, T> {
     grid: &'a Grid<T>,
-    center: Point,
     index: usize,
-    neighbors: &'static [Point],
+    neighbors: Vec<Point>,
 }
 
 impl<'a, T> Iterator for GridCellNeighbors<'a, T> {
@@ -245,7 +236,7 @@ impl<'a, T> Iterator for GridCellNeighbors<'a, T> {
         if self.index >= self.neighbors.len() {
             None
         } else {
-            let neighbor = self.center + self.neighbors[self.index];
+            let neighbor = self.neighbors[self.index];
             let val = self.grid.get(neighbor);
             self.index += 1;
             match val {
@@ -260,7 +251,6 @@ impl<'a, T> GridCellNeighbors<'a, T> {
     pub fn indexed(self) -> GridCellNeighborsIndexed<'a, T> {
         GridCellNeighborsIndexed {
             grid: self.grid,
-            center: self.center,
             index: self.index,
             neighbors: self.neighbors,
         }
@@ -269,9 +259,8 @@ impl<'a, T> GridCellNeighbors<'a, T> {
 
 pub struct GridCellNeighborsIndexed<'a, T> {
     grid: &'a Grid<T>,
-    center: Point,
     index: usize,
-    neighbors: &'static [Point],
+    neighbors: Vec<Point>,
 }
 
 impl<'a, T> Iterator for GridCellNeighborsIndexed<'a, T> {
@@ -281,7 +270,7 @@ impl<'a, T> Iterator for GridCellNeighborsIndexed<'a, T> {
         if self.index >= self.neighbors.len() {
             None
         } else {
-            let neighbor = self.center + self.neighbors[self.index];
+            let neighbor = self.neighbors[self.index];
             let val = self.grid.get(neighbor);
             self.index += 1;
             match val {
@@ -309,8 +298,8 @@ impl GridDisplay for char {
 
 impl<T: GridDisplay> Display for Grid<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for y in 0..self.height as isize {
-            for x in 0..self.width as isize {
+        for y in 0..self.height {
+            for x in 0..self.width {
                 match self.get(Point { x, y }) {
                     Some(value) => { T::fmt_cell(value, f)?; }
                     None => { T::fmt_empty_cell(f)?; },
@@ -372,7 +361,7 @@ mod tests {
             ghi";
         let grid = Grid::from(input);
         // Test neighbors of center
-        let mut n_iter = grid.point_neighbors_iter(Point { x: 1, y: 1});
+        let mut n_iter = grid.point_neighbors_iter(&Point { x: 1, y: 1});
         assert_eq!(n_iter.next(), Some(&'b'));
         assert_eq!(n_iter.next(), Some(&'d'));
         assert_eq!(n_iter.next(), Some(&'f'));
@@ -380,13 +369,13 @@ mod tests {
         assert_eq!(n_iter.next(), None);
 
         // Test neighbors of corner
-        let mut n_iter = grid.point_neighbors_iter(Point { x: 0, y: 2});
+        let mut n_iter = grid.point_neighbors_iter(&Point { x: 0, y: 2});
         assert_eq!(n_iter.next(), Some(&'d'));
         assert_eq!(n_iter.next(), Some(&'h'));
         assert_eq!(n_iter.next(), None);
 
         // Test orthogonal neighbors of center
-        let mut n_iter = grid.point_ortho_neighbors_iter(Point { x: 1, y: 1});
+        let mut n_iter = grid.point_ortho_neighbors_iter(&Point { x: 1, y: 1});
         assert_eq!(n_iter.next(), Some(&'a'));
         assert_eq!(n_iter.next(), Some(&'b'));
         assert_eq!(n_iter.next(), Some(&'c'));
@@ -398,7 +387,7 @@ mod tests {
         assert_eq!(n_iter.next(), None);
 
         // Test orthogonal neighbors of corner
-        let mut n_iter = grid.point_ortho_neighbors_iter(Point { x: 2, y: 2});
+        let mut n_iter = grid.point_ortho_neighbors_iter(&Point { x: 2, y: 2});
         assert_eq!(n_iter.next(), Some(&'e'));
         assert_eq!(n_iter.next(), Some(&'f'));
         assert_eq!(n_iter.next(), Some(&'h'));

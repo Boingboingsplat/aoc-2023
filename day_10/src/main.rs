@@ -1,5 +1,5 @@
 use aoc::*;
-use aoc::grid::{Grid, GridDisplay, Point};
+use aoc::grid::{Grid, GridDisplay, Vector2D};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PipeGridCell {
@@ -78,13 +78,13 @@ enum Direction {
 }
 
 impl Direction {
-    fn vector(&self) -> Point {
+    fn vector(&self) -> Vector2D {
         use Direction as D;
         match self {
-            D::North => Point{ x: 0, y: -1 },
-            D::South => Point{ x: 0, y: 1 },
-            D::East => Point{ x: 1, y: 0 },
-            D::West => Point{ x: -1, y: 0 },
+            D::North => Vector2D { x: 0, y: -1 },
+            D::South => Vector2D { x: 0, y: 1 },
+            D::East => Vector2D { x: 1, y: 0 },
+            D::West => Vector2D { x: -1, y: 0 },
         }
     }
     
@@ -118,7 +118,7 @@ fn flood_fill_grid(grid: &mut Grid<PipeGridCell>, target: &PipeGridCell) {
         .collect();
 
     while let Some(next) = frontier.pop() {
-        for point in DIRS.iter().map(|d| next + d.vector()) {
+        for point in DIRS.iter().filter_map(|d| next.offset_by(d.vector())) {
             if grid.check_inbounds(point) && grid.get(point).is_none() {
                 frontier.push(point);
                 grid.insert(point, *target);
@@ -141,7 +141,7 @@ impl Problem for Day10 {
                 if s == &C::Start { Some(p) } else { None }
             }).unwrap();
         let (mut current_point, mut current_dir) = DIRS.iter().find_map(|dir| {
-            let next_point = start_point + dir.vector();
+            let next_point = start_point.offset_by(dir.vector())?;
             let next_dir = *grid.get(next_point)?.next_from(dir)?;
             Some((next_point, next_dir))
         }).unwrap();
@@ -149,7 +149,7 @@ impl Problem for Day10 {
         let mut len = 1;
         loop {
             len += 1;
-            current_point += current_dir.vector();
+            current_point = current_point.offset_by(current_dir.vector()).expect("Pipe path went out of bounds");
             match grid.get(current_point) {
                 Some(C::Start) => { break; },
                 Some(pipe) => {
@@ -170,7 +170,7 @@ impl Problem for Day10 {
                 if s == &C::Start { Some(p) } else { None }
             }).unwrap();
         let mut current_dir = DIRS.iter().find_map(|dir| {
-            let next_point = current_point + dir.vector();
+            let next_point = current_point.offset_by(dir.vector())?;
             // If there is a path from the next point
             let _ = *grid.get(next_point)?.next_from(dir)?;
             Some(*dir)
@@ -179,18 +179,22 @@ impl Problem for Day10 {
         let mut mark_grid: Grid<C> = Grid::new();
         let mut turn_count = 0;
         loop {
-            let next_point = current_point + current_dir.vector();
+            let next_point = current_point.offset_by(current_dir.vector()).expect("Pipe path went out of bounds");
             let next_cell = *grid.get(next_point).expect("Pipe path ended unexpectedly");
 
             // Add pipe path and right and and left hand markings to markings grid
             mark_grid.insert(next_point, next_cell);
-            let right = current_point + current_dir.right_hand().vector();
-            if mark_grid.get(right).is_none() {
-                mark_grid.insert(right, C::RightMark);
+
+            if let Some(right) = current_point.offset_by(current_dir.right_hand().vector()) {
+                if mark_grid.get(right).is_none() {
+                    mark_grid.insert(right, C::RightMark);
+                }
             }
-            let left = current_point + current_dir.right_hand().opposite().vector();
-            if mark_grid.get(left).is_none() {
-                mark_grid.insert(left, C::LeftMark);
+            
+            if let Some(left) = current_point.offset_by(current_dir.right_hand().opposite().vector()) {
+                if mark_grid.get(left).is_none() {
+                    mark_grid.insert(left, C::LeftMark);
+                }
             }
 
             // Break loop once we're back at start
