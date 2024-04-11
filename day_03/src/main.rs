@@ -42,7 +42,7 @@ impl Problem for Day03 {
             .filter_map(|(p, v)| {
                 if *v == SchematicEntry::PartSymbol { Some(p) } else { None }
             })
-            .flat_map(|p| grid.point_ortho_neighbors_iter(p).dedup())
+            .flat_map(|p| grid.point_ortho_neighbors_iter(&p).dedup())
             .filter_map(|v| {
                 match v {
                     SchematicEntry::PartNum(n) => Some(n),
@@ -59,7 +59,7 @@ impl Problem for Day03 {
                 if *v == SchematicEntry::PartSymbol { Some(p) } else { None }
             })
             .filter_map(|p| {
-                let mut n_iter = grid.point_ortho_neighbors_iter(p).dedup();
+                let mut n_iter = grid.point_ortho_neighbors_iter(&p).dedup();
                 match (n_iter.next(), n_iter.next(), n_iter.next()) {
                     (Some(SchematicEntry::PartNum(n)), Some(SchematicEntry::PartNum(m)), None) => Some(n * m),
                     _ => None,

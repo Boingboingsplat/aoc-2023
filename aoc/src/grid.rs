@@ -106,8 +106,9 @@ impl<T> Grid<T> {
         self.map.insert(point, value)
     }
 
-    pub fn iter(&self) -> GridIterator<T> {
-        GridIterator { grid: self, current: Point { x: 0, y: 0 }}
+    pub fn iter(&self) -> GridFullIterator<T> {
+        let next = Point { x: 0, y: 0};
+        GridFullIterator { grid: self, next, current: next }
     }
 
     pub fn point_neighbors_iter(&self, point: &Point) -> GridCellNeighbors<T> {
@@ -134,6 +135,26 @@ impl<T> Grid<T> {
         ];
         let neighbors = NEIGHBOR_VECS.iter().filter_map(|&vec_2d| point.offset_by(vec_2d)).collect();
         GridCellNeighbors { grid: self, index: 0, neighbors }
+    }
+
+    pub fn row_iter(&self, row: usize) -> GridLinearIter<T> {
+        let next = Point { x: 0, y: row }; 
+        GridLinearIter {
+            grid: self,
+            next,
+            dir_vec: Vector2D { x: 1, y: 0 },
+            current: next,
+        }
+    }
+
+    pub fn col_iter(&self, col: usize) -> GridLinearIter<T> {
+        let next = Point { x: col, y: 0 }; 
+        GridLinearIter {
+            grid: self,
+            next,
+            dir_vec: Vector2D { x: 0, y: 1 },
+            current: next,
+        }
     }
 }
 
@@ -165,29 +186,46 @@ where
     }
 }
 
-pub struct GridIterator<'a, T> {
-    grid: &'a Grid<T>,
-    current: Point,
-}
-
-impl<'a, T> GridIterator<'a, T> {
-    pub fn indexed(self) -> GridIndexedIterator<'a, T> {
-        GridIndexedIterator { grid: self.grid, current: self.current }
+pub trait GridIterator<'a, T: 'a>: Iterator<Item = &'a T> {
+    fn current_index(&self) -> Point;
+    fn indexed(self) -> IndexedGridIterator<'a, T> where Self: Sized + 'a {
+        IndexedGridIterator { grid_iter: Box::new(self) }
     }
 }
 
-impl<'a, T> Iterator for GridIterator<'a, T> {
+pub struct IndexedGridIterator<'a, T> {
+    grid_iter: Box<dyn GridIterator<'a, T> + 'a>,
+}
+
+impl<'a, T: 'a> Iterator for IndexedGridIterator<'a, T> {
+    type Item = (Point, &'a T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.grid_iter.next();
+        let point = self.grid_iter.current_index();
+        next.map(|next| (point, next))
+    }
+}
+
+pub struct GridFullIterator<'a, T> {
+    grid: &'a Grid<T>,
+    next: Point,
+    current: Point,
+}
+
+impl<'a, T> Iterator for GridFullIterator<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current.y >= self.grid.height {
+        if self.next.y >= self.grid.height {
             None
         } else {
-            let val = self.grid.get(self.current);
-            self.current.x += 1;
-            if self.current.x >= self.grid.width {
-                self.current.x = 0;
-                self.current.y += 1;
+            let val = self.grid.get(self.next);
+            self.current = self.next;
+            self.next.x += 1;
+            if self.next.x >= self.grid.width {
+                self.next.x = 0;
+                self.next.y += 1;
             }
             match val {
                 Some(val) => Some(val),
@@ -197,29 +235,40 @@ impl<'a, T> Iterator for GridIterator<'a, T> {
     }
 }
 
-pub struct GridIndexedIterator<'a, T> {
+impl<'a, T> GridIterator<'a, T> for GridFullIterator<'a, T> {
+    fn current_index(&self) -> Point {
+        self.current
+    }
+}
+
+pub struct GridLinearIter<'a, T> {
     grid: &'a Grid<T>,
+    next: Point,
+    dir_vec: Vector2D,
     current: Point,
 }
 
-impl<'a, T> Iterator for GridIndexedIterator<'a, T> {
-    type Item = (&'a Point, &'a T);
+impl<'a, T> Iterator for GridLinearIter<'a, T> {
+    type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current.y >= self.grid.height {
-            None
-        } else {
-            let val = self.grid.map.get_key_value(&self.current);
-            self.current.x += 1;
-            if self.current.x >= self.grid.width {
-                self.current.x = 0;
-                self.current.y += 1;
-            }
+        if self.grid.check_inbounds(self.next) {
+            let val = self.grid.get(self.next);
+            self.current = self.next;
+            self.next = self.next.offset_by(self.dir_vec).unwrap();
             match val {
                 Some(val) => Some(val),
                 None => self.next(),
             }
+        } else {
+            None
         }
+    }
+}
+
+impl<'a, T> GridIterator<'a, T> for GridLinearIter<'a, T> {
+    fn current_index(&self) -> Point {
+        self.current
     }
 }
 
@@ -247,37 +296,10 @@ impl<'a, T> Iterator for GridCellNeighbors<'a, T> {
     }
 }
 
-impl<'a, T> GridCellNeighbors<'a, T> {
-    pub fn indexed(self) -> GridCellNeighborsIndexed<'a, T> {
-        GridCellNeighborsIndexed {
-            grid: self.grid,
-            index: self.index,
-            neighbors: self.neighbors,
-        }
-    }
-}
-
-pub struct GridCellNeighborsIndexed<'a, T> {
-    grid: &'a Grid<T>,
-    index: usize,
-    neighbors: Vec<Point>,
-}
-
-impl<'a, T> Iterator for GridCellNeighborsIndexed<'a, T> {
-    type Item = (Point, &'a T);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.neighbors.len() {
-            None
-        } else {
-            let neighbor = self.neighbors[self.index];
-            let val = self.grid.get(neighbor);
-            self.index += 1;
-            match val {
-                Some(val) => Some((neighbor, val)),
-                None => self.next(),
-            }
-        }
+impl<'a, T> GridIterator<'a, T> for GridCellNeighbors<'a, T> {
+    fn current_index(&self) -> Point {
+        let i = self.index.saturating_sub(1);
+        self.neighbors[i]
     }
 }
 
@@ -321,7 +343,7 @@ mod tests {
         let input = "\
             ab\n\
             cd";
-        let grid = Grid::from(input);
+        let grid: Grid<_> = input.into();
 
         let mut grid_iter = grid.iter();
         assert_eq!(grid_iter.next(), Some(&'a'));
@@ -329,13 +351,6 @@ mod tests {
         assert_eq!(grid_iter.next(), Some(&'c'));
         assert_eq!(grid_iter.next(), Some(&'d'));
         assert_eq!(grid_iter.next(), None);
-
-        let mut grid_indexed_iter = grid.iter().indexed();
-        assert_eq!(grid_indexed_iter.next(), Some((&Point { x: 0, y: 0 }, &'a')));
-        assert_eq!(grid_indexed_iter.next(), Some((&Point { x: 1, y: 0 }, &'b')));
-        assert_eq!(grid_indexed_iter.next(), Some((&Point { x: 0, y: 1 }, &'c')));
-        assert_eq!(grid_indexed_iter.next(), Some((&Point { x: 1, y: 1 }, &'d')));
-        assert_eq!(grid_indexed_iter.next(), None);
 
         // Sparse grid
         let mut grid = Grid::new();
@@ -346,11 +361,34 @@ mod tests {
         assert_eq!(grid_iter.next(), Some(&'A'));
         assert_eq!(grid_iter.next(), Some(&'Z'));
         assert_eq!(grid_iter.next(), None);
+    }
 
-        let mut grid_indexed_iter = grid.iter().indexed();
-        assert_eq!(grid_indexed_iter.next(), Some((&Point { x: 2, y: 3 }, &'A')));
-        assert_eq!(grid_indexed_iter.next(), Some((&Point { x: 5, y: 10 }, &'Z')));
-        assert_eq!(grid_indexed_iter.next(), None);
+    #[test]
+    fn test_linear_iterators() {
+        let input = "\
+            abc\n\
+            def\n\
+            ghi";
+        let grid: Grid<_> = input.into();
+        // Test row iter in bounds
+        let mut r_iter = grid.row_iter(0);
+        assert_eq!(r_iter.next(), Some(&'a'));
+        assert_eq!(r_iter.next(), Some(&'b'));
+        assert_eq!(r_iter.next(), Some(&'c'));
+        assert_eq!(r_iter.next(), None);
+        // Test row iter out of bounds
+        let mut r_iter = grid.row_iter(3);
+        assert_eq!(r_iter.next(), None);
+
+        // Test col iter in bounds
+        let mut r_iter = grid.col_iter(1);
+        assert_eq!(r_iter.next(), Some(&'b'));
+        assert_eq!(r_iter.next(), Some(&'e'));
+        assert_eq!(r_iter.next(), Some(&'h'));
+        assert_eq!(r_iter.next(), None);
+        // Test col iter out of bounds
+        let mut r_iter = grid.col_iter(3);
+        assert_eq!(r_iter.next(), None);
     }
 
     #[test]
@@ -359,7 +397,7 @@ mod tests {
             abc\n\
             def\n\
             ghi";
-        let grid = Grid::from(input);
+        let grid: Grid<_> = input.into();
         // Test neighbors of center
         let mut n_iter = grid.point_neighbors_iter(&Point { x: 1, y: 1});
         assert_eq!(n_iter.next(), Some(&'b'));
@@ -391,6 +429,35 @@ mod tests {
         assert_eq!(n_iter.next(), Some(&'e'));
         assert_eq!(n_iter.next(), Some(&'f'));
         assert_eq!(n_iter.next(), Some(&'h'));
+        assert_eq!(n_iter.next(), None);
+    }
+
+    #[test]
+    fn test_indexed_grid_iterators() {
+        // Full grid
+        let input = "\
+            ab\n\
+            cd";
+        let grid: Grid<_> = input.into();
+
+        // Full iterator
+        let mut grid_indexed_iter = grid.iter().indexed();
+        assert_eq!(grid_indexed_iter.next(), Some((Point { x: 0, y: 0 }, &'a')));
+        assert_eq!(grid_indexed_iter.next(), Some((Point { x: 1, y: 0 }, &'b')));
+        assert_eq!(grid_indexed_iter.next(), Some((Point { x: 0, y: 1 }, &'c')));
+        assert_eq!(grid_indexed_iter.next(), Some((Point { x: 1, y: 1 }, &'d')));
+        assert_eq!(grid_indexed_iter.next(), None);
+
+        // Linear iterator
+        let mut row_iter = grid.row_iter(0).indexed();
+        assert_eq!(row_iter.next(), Some((Point { x: 0, y: 0 }, &'a')));
+        assert_eq!(row_iter.next(), Some((Point { x: 1, y: 0 }, &'b')));
+        assert_eq!(row_iter.next(), None);
+
+        // Neighbor iterator
+        let mut n_iter = grid.point_neighbors_iter(&Point { x: 0, y: 0 }).indexed();
+        assert_eq!(n_iter.next(), Some((Point { x: 1, y: 0 }, &'b')));
+        assert_eq!(n_iter.next(), Some((Point { x: 0, y: 1 }, &'c')));
         assert_eq!(n_iter.next(), None);
     }
 }

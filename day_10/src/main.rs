@@ -1,5 +1,5 @@
 use aoc::*;
-use aoc::grid::{Grid, GridDisplay, Vector2D};
+use aoc::grid::{Grid, GridDisplay, GridIterator, Vector2D};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PipeGridCell {
@@ -114,7 +114,7 @@ const DIRS: [Direction; 4] = [Direction::North, Direction::East, Direction::Sout
 
 fn flood_fill_grid(grid: &mut Grid<PipeGridCell>, target: &PipeGridCell) {
     let mut frontier: Vec<_> = grid.iter().indexed()
-        .filter_map(|(&p, c)| { if c == target { Some(p) } else { None }})
+        .filter_map(|(p, c)| { if c == target { Some(p) } else { None }})
         .collect();
 
     while let Some(next) = frontier.pop() {
@@ -137,7 +137,7 @@ impl Problem for Day10 {
         let grid: Grid<C> = input.into();
 
         let start_point = grid.iter().indexed()
-            .find_map(|(&p, s)| {
+            .find_map(|(p, s)| {
                 if s == &C::Start { Some(p) } else { None }
             }).unwrap();
         let (mut current_point, mut current_dir) = DIRS.iter().find_map(|dir| {
@@ -166,7 +166,7 @@ impl Problem for Day10 {
         let grid: Grid<C> = input.into();
 
         let mut current_point = grid.iter().indexed()
-            .find_map(|(&p, s)| {
+            .find_map(|(p, s)| {
                 if s == &C::Start { Some(p) } else { None }
             }).unwrap();
         let mut current_dir = DIRS.iter().find_map(|dir| {
