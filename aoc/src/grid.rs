@@ -21,6 +21,10 @@ impl Point {
             y: self.y.checked_add_signed(vec_2d.y)?,
         })
     }
+
+    pub fn manhattan_distance(&self, other: &Point) -> usize {
+        self.x.abs_diff(other.x) + self.y.abs_diff(other.y)
+    }
 }
 
 impl TryFrom<Vector2D> for Point {
