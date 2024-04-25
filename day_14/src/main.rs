@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Display, hash::Hash};
 
-use aoc::{EnumFromChar, Problem};
+use aoc::{EnumFromChar, grid::Direction, Problem};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumFromChar)]
 enum Cell {
@@ -8,14 +8,6 @@ enum Cell {
     #[char = 'O'] Round,
     #[char = '#'] Square,
 }
-
-enum Direction {
-    North,
-    South,
-    West,
-    East,
-}
-
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Dish {

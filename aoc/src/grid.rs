@@ -51,6 +51,46 @@ impl <T: Into<isize>> From<(T, T)> for Vector2D {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    North,
+    South,
+    East,
+    West,
+}
+
+impl Direction {
+    pub fn vector(&self) -> Vector2D {
+        use Direction as D;
+        match self {
+            D::North => Vector2D { x: 0, y: -1 },
+            D::South => Vector2D { x: 0, y: 1 },
+            D::East => Vector2D { x: 1, y: 0 },
+            D::West => Vector2D { x: -1, y: 0 },
+        }
+    }
+    
+    pub fn opposite(&self) -> Self {
+        use Direction as D;
+        match self {
+            D::North => D::South,
+            D::South => D::North,
+            D::East => D::West,
+            D::West => D::East,
+        }
+    }
+
+    pub fn right_hand(&self) -> Self {
+        use Direction as D;
+        match self {
+            D::North => D::East,
+            D::South => D::West,
+            D::East => D::South,
+            D::West => D::North,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct Grid<T> {
     map: HashMap<Point, T>,
@@ -110,12 +150,12 @@ impl<T> Grid<T> {
         self.map.insert(point, value)
     }
 
-    pub fn iter(&self) -> GridFullIterator<T> {
+    pub fn iter(&self) -> GridIter<T> {
         let next = Point { x: 0, y: 0};
-        GridFullIterator { grid: self, next, current: next }
+        GridIter { grid: self, next, current: next }
     }
 
-    pub fn point_neighbors_iter(&self, point: &Point) -> GridCellNeighbors<T> {
+    pub fn neighbors_iter(&self, point: &Point) -> GridNeighbors<T> {
         const NEIGHBOR_VECS: [Vector2D; 4] = [
             Vector2D { x: 0, y: -1 },
             Vector2D { x: -1, y: 0 },
@@ -123,10 +163,10 @@ impl<T> Grid<T> {
             Vector2D { x: 0, y: 1 },
         ];
         let neighbors = NEIGHBOR_VECS.iter().filter_map(|&vec_2d| point.offset_by(vec_2d)).collect();
-        GridCellNeighbors { grid: self, index: 0, neighbors }
+        GridNeighbors { grid: self, index: 0, neighbors }
     }
 
-    pub fn point_ortho_neighbors_iter(&self, point: &Point) -> GridCellNeighbors<T> {
+    pub fn ortho_iter(&self, point: &Point) -> GridNeighbors<T> {
         const NEIGHBOR_VECS: [Vector2D; 8] = [
             Vector2D { x: -1, y: -1 },
             Vector2D { x: 0, y: -1 },
@@ -138,7 +178,7 @@ impl<T> Grid<T> {
             Vector2D { x: 1, y: 1 },
         ];
         let neighbors = NEIGHBOR_VECS.iter().filter_map(|&vec_2d| point.offset_by(vec_2d)).collect();
-        GridCellNeighbors { grid: self, index: 0, neighbors }
+        GridNeighbors { grid: self, index: 0, neighbors }
     }
 
     pub fn row_iter(&self, row: usize) -> GridLinearIter<T> {
@@ -192,16 +232,16 @@ where
 
 pub trait GridIterator<'a, T: 'a>: Iterator<Item = &'a T> {
     fn current_index(&self) -> Point;
-    fn indexed(self) -> IndexedGridIterator<'a, T> where Self: Sized + 'a {
-        IndexedGridIterator { grid_iter: Box::new(self) }
+    fn indexed(self) -> IndexedGridIter<'a, T> where Self: Sized + 'a {
+        IndexedGridIter { grid_iter: Box::new(self) }
     }
 }
 
-pub struct IndexedGridIterator<'a, T> {
+pub struct IndexedGridIter<'a, T> {
     grid_iter: Box<dyn GridIterator<'a, T> + 'a>,
 }
 
-impl<'a, T: 'a> Iterator for IndexedGridIterator<'a, T> {
+impl<'a, T: 'a> Iterator for IndexedGridIter<'a, T> {
     type Item = (Point, &'a T);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -211,13 +251,13 @@ impl<'a, T: 'a> Iterator for IndexedGridIterator<'a, T> {
     }
 }
 
-pub struct GridFullIterator<'a, T> {
+pub struct GridIter<'a, T> {
     grid: &'a Grid<T>,
     next: Point,
     current: Point,
 }
 
-impl<'a, T> Iterator for GridFullIterator<'a, T> {
+impl<'a, T> Iterator for GridIter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -239,7 +279,7 @@ impl<'a, T> Iterator for GridFullIterator<'a, T> {
     }
 }
 
-impl<'a, T> GridIterator<'a, T> for GridFullIterator<'a, T> {
+impl<'a, T> GridIterator<'a, T> for GridIter<'a, T> {
     fn current_index(&self) -> Point {
         self.current
     }
@@ -276,13 +316,13 @@ impl<'a, T> GridIterator<'a, T> for GridLinearIter<'a, T> {
     }
 }
 
-pub struct GridCellNeighbors<'a, T> {
+pub struct GridNeighbors<'a, T> {
     grid: &'a Grid<T>,
     index: usize,
     neighbors: Vec<Point>,
 }
 
-impl<'a, T> Iterator for GridCellNeighbors<'a, T> {
+impl<'a, T> Iterator for GridNeighbors<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -300,35 +340,21 @@ impl<'a, T> Iterator for GridCellNeighbors<'a, T> {
     }
 }
 
-impl<'a, T> GridIterator<'a, T> for GridCellNeighbors<'a, T> {
+impl<'a, T> GridIterator<'a, T> for GridNeighbors<'a, T> {
     fn current_index(&self) -> Point {
         let i = self.index.saturating_sub(1);
         self.neighbors[i]
     }
 }
 
-pub trait GridDisplay {
-    fn fmt_cell(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
-    fn fmt_empty_cell(f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
-}
-
-impl GridDisplay for char {
-    fn fmt_cell(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
-
-    fn fmt_empty_cell(f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, " ")
-    }
-}
-
-impl<T: GridDisplay> Display for Grid<T> {
+impl<T: Display> Display for Grid<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let width = self.iter().map(|v| format!("{}", v).chars().count()).max().unwrap_or(0);
         for y in 0..self.height {
             for x in 0..self.width {
                 match self.get(Point { x, y }) {
-                    Some(value) => { T::fmt_cell(value, f)?; }
-                    None => { T::fmt_empty_cell(f)?; },
+                    Some(value) => { write!(f, "{:^width$}", value)? }
+                    None => { write!(f, "{:width$}", " ")? },
                 }
             }
             writeln!(f)?;
@@ -403,7 +429,7 @@ mod tests {
             ghi";
         let grid: Grid<_> = input.into();
         // Test neighbors of center
-        let mut n_iter = grid.point_neighbors_iter(&Point { x: 1, y: 1});
+        let mut n_iter = grid.neighbors_iter(&Point { x: 1, y: 1});
         assert_eq!(n_iter.next(), Some(&'b'));
         assert_eq!(n_iter.next(), Some(&'d'));
         assert_eq!(n_iter.next(), Some(&'f'));
@@ -411,13 +437,13 @@ mod tests {
         assert_eq!(n_iter.next(), None);
 
         // Test neighbors of corner
-        let mut n_iter = grid.point_neighbors_iter(&Point { x: 0, y: 2});
+        let mut n_iter = grid.neighbors_iter(&Point { x: 0, y: 2});
         assert_eq!(n_iter.next(), Some(&'d'));
         assert_eq!(n_iter.next(), Some(&'h'));
         assert_eq!(n_iter.next(), None);
 
         // Test orthogonal neighbors of center
-        let mut n_iter = grid.point_ortho_neighbors_iter(&Point { x: 1, y: 1});
+        let mut n_iter = grid.ortho_iter(&Point { x: 1, y: 1});
         assert_eq!(n_iter.next(), Some(&'a'));
         assert_eq!(n_iter.next(), Some(&'b'));
         assert_eq!(n_iter.next(), Some(&'c'));
@@ -429,7 +455,7 @@ mod tests {
         assert_eq!(n_iter.next(), None);
 
         // Test orthogonal neighbors of corner
-        let mut n_iter = grid.point_ortho_neighbors_iter(&Point { x: 2, y: 2});
+        let mut n_iter = grid.ortho_iter(&Point { x: 2, y: 2});
         assert_eq!(n_iter.next(), Some(&'e'));
         assert_eq!(n_iter.next(), Some(&'f'));
         assert_eq!(n_iter.next(), Some(&'h'));
@@ -459,7 +485,7 @@ mod tests {
         assert_eq!(row_iter.next(), None);
 
         // Neighbor iterator
-        let mut n_iter = grid.point_neighbors_iter(&Point { x: 0, y: 0 }).indexed();
+        let mut n_iter = grid.neighbors_iter(&Point { x: 0, y: 0 }).indexed();
         assert_eq!(n_iter.next(), Some((Point { x: 1, y: 0 }, &'b')));
         assert_eq!(n_iter.next(), Some((Point { x: 0, y: 1 }, &'c')));
         assert_eq!(n_iter.next(), None);

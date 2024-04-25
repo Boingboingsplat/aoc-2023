@@ -18,4 +18,5 @@ fn test_enum_from_char() {
     assert_eq!('F'.try_into(), Ok(FooBar::Foo));
     assert_eq!('B'.try_into(), Ok(FooBar::Bar(10)));
     assert_eq!('Z'.try_into(), Ok(FooBar::Baz{foo: 8, bar: 10}));
+    assert_eq!(format!("{} {} {}", FooBar::Foo, FooBar::Bar(0), FooBar::Baz { foo: 1, bar: 2 }), "F B Z")
 }

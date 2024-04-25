@@ -1,5 +1,5 @@
 use aoc::*;
-use aoc::grid::{Grid, GridDisplay, GridIterator, Vector2D};
+use aoc::grid::{Direction, Grid, GridIterator};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PipeGridCell {
@@ -45,8 +45,8 @@ impl TryFrom<char> for PipeGridCell {
     }
 }
 
-impl GridDisplay for PipeGridCell {
-    fn fmt_cell(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl std::fmt::Display for PipeGridCell {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use PipeGridCell as C;
         use Direction as D;
         let c = match self {
@@ -63,52 +63,7 @@ impl GridDisplay for PipeGridCell {
         };
         write!(f, "{}", c)
     }
-
-    fn fmt_empty_cell(f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, " ")
-    }
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Direction {
-    North,
-    South,
-    East,
-    West,
-}
-
-impl Direction {
-    fn vector(&self) -> Vector2D {
-        use Direction as D;
-        match self {
-            D::North => Vector2D { x: 0, y: -1 },
-            D::South => Vector2D { x: 0, y: 1 },
-            D::East => Vector2D { x: 1, y: 0 },
-            D::West => Vector2D { x: -1, y: 0 },
-        }
-    }
-    
-    fn opposite(&self) -> Self {
-        use Direction as D;
-        match self {
-            D::North => D::South,
-            D::South => D::North,
-            D::East => D::West,
-            D::West => D::East,
-        }
-    }
-
-    fn right_hand(&self) -> Self {
-        use Direction as D;
-        match self {
-            D::North => D::East,
-            D::South => D::West,
-            D::East => D::South,
-            D::West => D::North,
-        }
-    }
-}
-
 
 const DIRS: [Direction; 4] = [Direction::North, Direction::East, Direction::South, Direction::West];
 
