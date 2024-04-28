@@ -27,6 +27,12 @@ impl Point {
     }
 }
 
+impl Display for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
+}
+
 impl TryFrom<Vector2D> for Point {
     type Error = <isize as TryInto<usize>>::Error;
 
@@ -51,7 +57,7 @@ impl <T: Into<isize>> From<(T, T)> for Vector2D {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Direction {
     North,
     South,
@@ -87,6 +93,17 @@ impl Direction {
             D::South => D::West,
             D::East => D::South,
             D::West => D::North,
+        }
+    }
+}
+
+impl Display for Direction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Direction::North => write!(f, "North"),
+            Direction::South => write!(f, "South"),
+            Direction::East => write!(f, "East"),
+            Direction::West => write!(f, "West"),
         }
     }
 }
@@ -181,12 +198,21 @@ impl<T> Grid<T> {
         GridNeighbors { grid: self, index: 0, neighbors }
     }
 
+    pub fn linear_iter(&self, start: Point, dir: Direction) -> GridLinearIter<T> {
+        GridLinearIter {
+            grid: self,
+            next: start,
+            dir,
+            current: start,
+        }
+    }
+
     pub fn row_iter(&self, row: usize) -> GridLinearIter<T> {
         let next = Point { x: 0, y: row }; 
         GridLinearIter {
             grid: self,
             next,
-            dir_vec: Vector2D { x: 1, y: 0 },
+            dir: Direction::East,
             current: next,
         }
     }
@@ -196,7 +222,7 @@ impl<T> Grid<T> {
         GridLinearIter {
             grid: self,
             next,
-            dir_vec: Vector2D { x: 0, y: 1 },
+            dir: Direction::South,
             current: next,
         }
     }
@@ -288,7 +314,7 @@ impl<'a, T> GridIterator<'a, T> for GridIter<'a, T> {
 pub struct GridLinearIter<'a, T> {
     grid: &'a Grid<T>,
     next: Point,
-    dir_vec: Vector2D,
+    dir: Direction,
     current: Point,
 }
 
@@ -299,7 +325,7 @@ impl<'a, T> Iterator for GridLinearIter<'a, T> {
         if self.grid.check_inbounds(self.next) {
             let val = self.grid.get(self.next);
             self.current = self.next;
-            self.next = self.next.offset_by(self.dir_vec).unwrap();
+            self.next = self.next.offset_by(self.dir.vector()).unwrap();
             match val {
                 Some(val) => Some(val),
                 None => self.next(),
