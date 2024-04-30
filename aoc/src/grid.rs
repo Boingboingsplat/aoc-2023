@@ -1,13 +1,13 @@
 use derive_more::{Add, AddAssign};
 use std::{collections::HashMap, fmt::{Debug, Display}};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Add, AddAssign)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Add, AddAssign)]
 pub struct Point {
     pub x: usize,
     pub y: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Add, AddAssign)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Add, AddAssign)]
 pub struct Vector2D {
     pub x: isize,
     pub y: isize,
@@ -24,6 +24,14 @@ impl Point {
 
     pub fn manhattan_distance(&self, other: &Point) -> usize {
         self.x.abs_diff(other.x) + self.y.abs_diff(other.y)
+    }
+
+    pub fn neighbors(&self) -> Vec<Point> {
+        Direction::DIRS.iter()
+            .filter_map(|d| {
+                self.offset_by(d.vector())
+            })
+            .collect()
     }
 }
 
@@ -57,7 +65,7 @@ impl <T: Into<isize>> From<(T, T)> for Vector2D {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Direction {
     North,
     South,
@@ -66,6 +74,8 @@ pub enum Direction {
 }
 
 impl Direction {
+    pub const DIRS: [Direction; 4] = [Direction::North, Direction::South, Direction::East, Direction::West];
+
     pub fn vector(&self) -> Vector2D {
         use Direction as D;
         match self {
@@ -94,6 +104,10 @@ impl Direction {
             D::East => D::South,
             D::West => D::North,
         }
+    }
+
+    pub fn left_hand(&self) -> Self {
+        self.right_hand().opposite()
     }
 }
 
