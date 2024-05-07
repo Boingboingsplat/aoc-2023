@@ -1,5 +1,5 @@
 use derive_more::{Add, AddAssign};
-use std::{collections::HashMap, fmt::{Debug, Display}};
+use std::{collections::{BTreeSet, HashMap, HashSet}, fmt::{Debug, Display}};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Add, AddAssign)]
 pub struct Point {
@@ -242,6 +242,23 @@ impl<T> Grid<T> {
     }
 }
 
+impl<T: Clone + Eq> Grid<T> {
+    pub fn flood_fill<P> (&mut self, start: P, value: T, replace: Option<&T>)
+    where
+        P: Into<Point>,
+    {
+        let start = start.into();
+        let mut frontier: BTreeSet<Point> = BTreeSet::new();
+        frontier.insert(start);
+        while let Some(point) = frontier.pop_first() {
+            if self.check_inbounds(point) && replace == self.get(point) {
+                self.insert(point, value.clone());
+                frontier.extend(point.neighbors())
+            }
+        }
+    }
+}
+
 impl<T> Default for Grid<T> {
     fn default() -> Self {
         Grid::new()
@@ -406,6 +423,25 @@ impl<T: Display> Display for Grid<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_flood_fill() {
+        let mut input_grid: Grid<char> = "\
+            ####\n\
+            #  #\n\
+            # ##\n\
+            ###".into();
+
+        input_grid.flood_fill(Point { x: 1, y: 1 }, 'O', Some(&' '));
+
+        let output_grid: Grid<char> = "\
+            ####\n\
+            #OO#\n\
+            #O##\n\
+            ###".into();
+
+        assert_eq!(input_grid, output_grid);
+    }
 
     #[test]
     fn test_grid_iterator() {
