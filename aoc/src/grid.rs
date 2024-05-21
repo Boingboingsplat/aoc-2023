@@ -77,6 +77,30 @@ impl Point {
     }
 }
 
+impl Vector2D {
+    /// Returns a list of Vector2D that are adjacent to `self`.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use aoc::grid::Vector2D;
+    /// let vec_2d = Vector2D { x: 0, y: 0 };
+    /// let mut neighbors = vec_2d.neighbors();
+    /// 
+    /// assert_eq!(neighbors.next(), Some(Vector2D { x: 0, y: -1 }));
+    /// assert_eq!(neighbors.next(), Some(Vector2D { x: 0, y: 1 }));
+    /// assert_eq!(neighbors.next(), Some(Vector2D { x: 1, y: 0 }));
+    /// assert_eq!(neighbors.next(), Some(Vector2D { x: -1, y: 0 }));
+    /// assert_eq!(neighbors.next(), None);
+    /// ```
+    pub fn neighbors(&self) -> impl Iterator<Item = Vector2D> + '_ {
+        Direction::DIRS.iter()
+            .map(|d| {
+                *self + (d.vector())
+            })
+    }
+}
+
 impl Display for Point {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({}, {})", self.x, self.y)
@@ -89,7 +113,15 @@ impl TryFrom<Vector2D> for Point {
     fn try_from(value: Vector2D) -> Result<Self, Self::Error> {
         Ok(Point { x: value.x.try_into()?, y: value.y.try_into()? })
     }
-} 
+}
+
+impl TryFrom<Point> for Vector2D {
+    type Error = <usize as TryInto<isize>>::Error;
+    
+    fn try_from(value: Point) -> Result<Self, Self::Error> {
+        Ok(Vector2D { x: value.x.try_into()?, y: value.y.try_into()? })
+    }
+}
 
 impl<T: Into<usize>> From<(T, T)> for Point {
     fn from(value: (T, T)) -> Self {
